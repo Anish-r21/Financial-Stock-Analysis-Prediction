@@ -1,2 +1,2 @@
-# demo
-intro to GitHub
+#Financial Stock Analysis & Prediction
+
