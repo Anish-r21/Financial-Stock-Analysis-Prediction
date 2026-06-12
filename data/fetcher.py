@@ -53,8 +53,29 @@ def fetch_data(ticker: str, start: str, end: Optional[str] = None) -> pd.DataFra
     except Exception as exc:  # network or yfinance internal errors
         raise ConnectionError(f"Failed to fetch data for {ticker}: {exc}")
 
+    # If no data returned, try an inclusive end-date (yfinance end is exclusive in some cases)
     if df is None or df.empty:
-        raise ValueError(f"No data found for {ticker} between {start_dt.date()} and {end_dt.date()}")
+        try:
+            alt_end = (end_dt + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+            df = yf.download(ticker, start=start_dt.strftime("%Y-%m-%d"), end=alt_end, progress=False, threads=False)
+        except Exception:
+            df = None
+
+    # Final fallback: use Ticker.history which can behave slightly differently
+    if df is None or df.empty:
+        try:
+            tk = yf.Ticker(ticker)
+            hist = tk.history(start=start_dt.strftime("%Y-%m-%d"), end=(end_dt + pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
+            if hist is not None and not hist.empty:
+                df = hist
+        except Exception:
+            df = None
+
+    if df is None or df.empty:
+        raise ValueError(
+            f"No data found for {ticker} between {start_dt.date()} and {end_dt.date()}. "
+            "Try a different ticker or a wider date range, and ensure you have network access."
+        )
 
     # Ensure datetime index and expected column names
     df.index = pd.to_datetime(df.index)
